@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=45", "wheel", "setuptools_scm>=6.2"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "prefect-oci"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "oras>=0.2.38",
+    "prefect>=3.6.9",
+]
+dynamic = ["version"]
+
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["prefect_oci*"]
+
+[tool.setuptools_scm]
+version_file = "prefect_oci/_version.py"
+root = "."
+tag_regex = "^prefect-oci-(?P<version>\\d+\\.\\d+\\.\\d+(?:[a-zA-Z0-9]+(?:\\.[a-zA-Z0-9]+)*)?)$"
+fallback_version = "0.0.0"
+git_describe_command = 'git describe --dirty --tags --long --match "prefect-oci-*[0-9]*"'
+
+[project.entry-points."prefect.collections"]
+prefect_oci = "prefect_oci"
+
+
+
