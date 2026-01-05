@@ -1,0 +1,31 @@
+build:
+  - prefect_oci.deployments.steps.create_tar_archive:
+      requires:
+        - "prefect-oci @ git+https://github.com/bdalpe/prefect-oci.git"
+      id: flow
+      sources:
+        - test.py
+
+push:
+  - prefect.deployments.steps.run_shell_script:
+      id: uuid
+      script: python -c "import uuid; print(uuid.uuid4())"
+      stream_output: false
+
+  - prefect_oci.deployments.steps.push_oci_image:
+      requires: "prefect-oci @ git+https://github.com/bdalpe/prefect-oci.git"
+      name: "ttl.sh/{{ uuid.stdout }}"
+      tag: "8h"
+      layers:
+        - "{{ flow.output_path }}"
+
+pull:
+  - prefect_oci.deployments.steps.pull_oci_image:
+      requires: "prefect-oci @ git+https://github.com/bdalpe/prefect-oci.git"
+      name: "ttl.sh/{{ uuid.stdout }}"
+      tag: "8h"
+
+deployments:
+  - name: "oci-simple-test"
+    entrypoint: "test.py:hello_world"
+    schedules: null
