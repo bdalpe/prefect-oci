@@ -1,8 +1,11 @@
+import logging
 import platform
 import re
 from typing import Optional
 
 from pydantic import BaseModel, Field
+
+logger = logging.getLogger(__name__)
 
 # The value takes the form of `os/arch` or `os/arch/variant`.
 # https://docs.docker.com/reference/cli/docker/buildx/build/#platform
@@ -35,16 +38,20 @@ class Platform(BaseModel):
             
     @classmethod
     def from_str(cls, platform_str: str) -> "Platform":
+        logger.debug("Parsing platform string: %s", platform_str)
         match = platform_regex.match(platform_str)
 
         if not match:
+            logger.error("Invalid platform string format: %s", platform_str)
             raise ValueError(f"Invalid platform string: {platform_str}")
         
         data = {
-            "os": match.group("os"), 
-            "architecture": match.group("architecture"), 
+            "os": match.group("os"),
+            "architecture": match.group("architecture"),
             "variant": match.group("variant")
         }
+        logger.debug("Parsed platform: os=%s, arch=%s, variant=%s",
+                    data["os"], data["architecture"], data.get("variant"))
 
         return Platform(**data)
 
@@ -55,6 +62,9 @@ class Platform(BaseModel):
         :param other: the other platform dict to compare against
         :return: True if they match, False otherwise
         """
+        logger.debug("Comparing platforms: self=%s/%s/%s, other=%s/%s/%s",
+                    self.os, self.architecture, self.variant,
+                    other.get("os"), other.get("architecture"), other.get("variant"))
         return all([
             other.get("os") is None or self.os == other.get("os"),
             other.get("architecture") is None or self.architecture == other.get("architecture"),
@@ -79,8 +89,10 @@ class Platform(BaseModel):
         """
         Detect the current system's platform.
         """
+        logger.debug("Detecting system platform")
         os_name = platform.system().lower()
         arch = platform.machine().lower()
+        logger.debug("Detected system: os_name=%s, arch=%s", os_name, arch)
 
         os_map = {
             "linux": "linux",
@@ -89,6 +101,7 @@ class Platform(BaseModel):
         }
         os = next((v for k, v in os_map.items() if os_name.startswith(k)), None)
         if not os:
+            logger.error("Unsupported operating system detected: %s", os_name)
             raise RuntimeError(f"Unsupported OS: {os_name}")
 
         arch_map = {
@@ -99,6 +112,8 @@ class Platform(BaseModel):
         }
         architecture = arch_map.get(arch, "arm" if arch.startswith("arm") else None)
         if not architecture:
+            logger.error("Unsupported CPU architecture detected: %s", arch)
             raise RuntimeError(f"Unsupported architecture: {arch}")
 
+        logger.info("Detected platform: %s/%s", os, architecture)
         return Platform(os=os, architecture=architecture)

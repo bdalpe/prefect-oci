@@ -46,6 +46,7 @@ async def push_oci_image(
     
     # If layers is a list, we treat it as a single manifest
     if isinstance(layers, list) and all(isinstance(layer, str) for layer in layers):
+        logger.debug("Pushing single manifest with %d layer(s)", len(layers))
         response = client.push(
             str(container),
             files=[
@@ -56,6 +57,7 @@ async def push_oci_image(
         )
         
         digest = client.extract_manifest_digest_from_upload_response(response)
+        logger.debug("Uploaded manifest with digest: %s", digest)
 
         manifest = client.get_manifest(Container.with_new_digest(container, digest))
         manifest['digest'] = digest  # add digest for the index manifest
@@ -65,9 +67,13 @@ async def push_oci_image(
 
     # If layers is a mapping, we treat it as a multi-platform image
     if isinstance(layers, list) and all(isinstance(layer, dict) and PlatformManifest.model_validate(layer) for layer in layers):
+        logger.info("Pushing multi-platform image with %d platform(s)", len(layers))
         for platform in layers:
             platform: dict
-            
+
+            platform_str = f"{platform['platform'].get('os', 'unknown')}/{platform['platform'].get('architecture', 'unknown')}"
+            logger.debug("Processing platform: %s with %d layer(s)", platform_str, len(platform['layers']))
+
             # create config file
             with tempfile.NamedTemporaryFile() as config_file:
                 config = {}
@@ -99,7 +105,9 @@ async def push_oci_image(
                 manifest['size'] = len(json.dumps(manifest))
                 manifest['digest'] = digest  # add digest for the index manifest
                 manifest['platform'] = platform['platform']
-                
+
+                logger.debug("Uploaded platform manifest: %s (digest: %s)", platform_str, digest)
+
                 manifests.append(manifest)
         
     manifest = create_oci_image_index_manifest(manifests)
@@ -109,15 +117,17 @@ async def push_oci_image(
     with temporary_empty_config() as config_file:
         config = EmptyManifestConfig()
         client.upload_blob(config_file, container, config)
-    
+
     # Upload the image index
+    logger.debug("Uploading image index with %d manifest(s)", len(manifests))
     image_index_response = client.upload_image_index(
         manifest,
         container=container
     )
     
     digest = client.extract_manifest_digest_from_upload_response(image_index_response)
-    
+    logger.info("Successfully pushed OCI image %s:%s (digest: %s)", name, tag, digest)
+
     return {
         "name": name,
         "tag": tag,

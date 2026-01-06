@@ -33,15 +33,19 @@ async def create_tar_archive(
     :param working_directory: The working directory to use when creating the archive.
     :param ignore_file: Path to a file containing ignore patterns (like .gitignore).
     """
+    logger.info("Creating tar archive at %s", output_path)
 
     included_files = None
     if ignore_file and Path(ignore_file).exists():
+        logger.debug("Using ignore file: %s", ignore_file)
         with open(ignore_file, "r") as f:
             ignore_patterns = f.readlines()
 
         included_files = filter_files(str(working_directory), ignore_patterns)
+        logger.debug("Filtered %d files using ignore patterns", len(included_files))
     
     sources = [sources] if isinstance(sources, str) else sources
+    logger.debug("Archiving %d source(s): %s", len(sources), sources)
 
     def item_generator() -> Iterable[Path]:
         cwd = Path(working_directory)
@@ -52,7 +56,7 @@ async def create_tar_archive(
             if source_path.is_dir():
                 for path in source_path.rglob("*"):
                     if path.is_file():
-                        print(str(path.relative_to(cwd)))
+                        logger.debug("Including file in archive: %s", path.relative_to(cwd))
                         if included_files is None or str(path.relative_to(cwd)) in included_files:
                             yield path
             else:
@@ -60,12 +64,13 @@ async def create_tar_archive(
                     yield source_path
     
     make_targz(
-        item_generator(), 
-        output_path, 
-        working_directory=working_directory, 
+        item_generator(),
+        output_path,
+        working_directory=working_directory,
         archive_root=archive_root
     )
-    
+    logger.info("Successfully created tar archive at %s", output_path)
+
     return {
         "output_path": output_path
     }
@@ -93,9 +98,12 @@ async def install_dependencies_for_archiving(
     :param additional_pip_args: Additional arguments to pass to pip.
     :param stream_output: Whether to stream the output to logger.
     """
+    logger.info("Installing dependencies from %s to %s", requirements_file, target_directory)
+
     command = ["pip3", "install", "-r", requirements_file, "--target", target_directory]
 
     if platform:
+        logger.debug("Target platform: %s", platform)
         command.extend(["--python-platform", platform])
 
     if additional_pip_args:
@@ -105,8 +113,13 @@ async def install_dependencies_for_archiving(
 
     if uv:
         command = [uv, *command]
+        tool = "uv"
     else:
         command = [sys.executable, "-m", *command]
+        tool = "pip"
+
+    logger.debug("Using %s for dependency installation", tool)
+    logger.debug("Command: %s", " ".join(command))
 
     if stream_output == True:
         stream_output = (LoggerWriter(logger, logging.INFO), LoggerWriter(logger, logging.ERROR))
@@ -115,3 +128,4 @@ async def install_dependencies_for_archiving(
         command,
         stream_output=stream_output
     )
+    logger.info("Successfully installed dependencies to %s", target_directory)

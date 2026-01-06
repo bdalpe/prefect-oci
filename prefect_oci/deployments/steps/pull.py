@@ -1,7 +1,6 @@
 import logging
 import os
 
-logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 
@@ -25,14 +24,16 @@ async def pull_oci_image(
     from prefect_oci.provider.registry import Registry
 
     client = Registry(**client_kwargs or {})
-    
-    logger.debug("Pulling OCI image %s:%s to temporary directory %s", name, tag, path)
-        
+
+    logger.info("Pulling OCI image %s:%s to %s", name, tag, path)
+
     files = client.pull(
         "{0}:{1}".format(name, tag),
         outdir=path
     )
-    
+    logger.info("Successfully pulled OCI image %s:%s (%d file(s))", name, tag, len(files))
+    logger.debug("Extracted files: %s", files)
+
     return {
         "files": files,
         "path": path,

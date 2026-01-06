@@ -1,11 +1,11 @@
 from typing import Optional, List
 
+import logging
 import jsonschema
 import oras.container
 import oras.defaults
 import oras.schemas
 import requests
-from oras.logger import logger
 from oras.provider import Registry as ORASRegistry
 from oras import decorator
 from oras.types import container_type
@@ -14,6 +14,8 @@ from prefect_oci.provider.container import Container
 from prefect_oci.provider.defaults import default_image_index_media_type
 from prefect_oci.provider.platform import Platform
 from prefect_oci.provider.schemas import image_index
+
+logger = logging.getLogger(__name__)
 
 
 class Registry(ORASRegistry):
@@ -37,6 +39,9 @@ class Registry(ORASRegistry):
         :type schema: dict
         """
         jsonschema.validate(manifest, schema=schema or oras.schemas.manifest)
+        logger.debug("Uploading manifest to %s (content-type: %s)",
+                            container.manifest_url(),
+                            content_type or oras.defaults.default_manifest_media_type)
         headers = {
             "Content-Type": content_type or oras.defaults.default_manifest_media_type,
         }
@@ -55,6 +60,7 @@ class Registry(ORASRegistry):
         """
         Wrapper around upload_manifest to upload an image index.
         """
+        logger.info("Uploading image index to %s", container.manifest_url())
         return self.upload_manifest(
             manifest,
             container,
@@ -82,6 +88,7 @@ class Registry(ORASRegistry):
         # Load authentication configs for the container's registry
         # This ensures credentials are available for authenticated registries
         self.auth.load_configs(container)
+        logger.debug("Fetching manifest from %s", container.manifest_url())
 
         if not allowed_media_type:
             allowed_media_type = [oras.defaults.default_manifest_media_type]
@@ -93,6 +100,8 @@ class Registry(ORASRegistry):
         self._check_200_response(response)
         manifest = response.json()
         jsonschema.validate(manifest, schema=schema or oras.schemas.manifest)
+        logger.debug("Successfully retrieved manifest (media type: %s)",
+                            manifest.get('mediaType', 'unknown'))
         return manifest
 
     @decorator.ensure_container
@@ -106,6 +115,7 @@ class Registry(ORASRegistry):
         :param container: parsed container URI
         :type container: oras.container.Container or str
         """
+        logger.debug("Fetching image index from %s", container.manifest_url())
 
         return self.get_manifest(
             container,
@@ -145,24 +155,31 @@ class Registry(ORASRegistry):
         # Check if the manifest is an image index
         try:
             index = self.get_image_index(container)
+            logger.debug("Found image index with %d manifest(s)", len(index.get("manifests", [])))
 
-            # If multiple manifests match a client or runtime's requirements, 
+            # If multiple manifests match a client or runtime's requirements,
             # the first matching entry SHOULD be used.
             # https://github.com/opencontainers/image-spec/blob/main/image-index.md
 
             platform = Platform.detect_system()
+            logger.debug("Selecting manifest for platform: %s/%s", platform.os, platform.architecture)
 
             for manifest in index.get("manifests", []):
                 if platform.is_match(manifest.get("platform", {})):
+                    logger.info("Selected manifest for platform %s/%s (digest: %s)",
+                                       manifest.get("platform", {}).get("os"),
+                                       manifest.get("platform", {}).get("architecture"),
+                                       manifest['digest'])
                     container = Container.with_new_digest(container, manifest['digest'])
                     break
 
         except ValueError as e:
             # Image index was not found, continue as normal manifest
-            logger.debug(f"Not an image index: {e}")
+            logger.debug("Not an image index, treating as single manifest: %s", e)
             pass
-        
+
         # continue with the default pull behavior
+        logger.debug("Pulling layers from %s", str(container))
         return super().pull(
             str(container),
             config_path=config_path,
