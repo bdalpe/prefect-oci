@@ -25,6 +25,12 @@ tag_regex = "^prefect-oci-(?P<version>\\d+\\.\\d+\\.\\d+(?:[a-zA-Z0-9]+(?:\\.[a-
 fallback_version = "0.0.0"
 git_describe_command = 'git describe --dirty --tags --long --match "prefect-oci-*[0-9]*"'
 
+[dependency-groups]
+dev = [
+    "pytest>=9.0.2",
+    "pytest-asyncio>=1.3.0",
+]
+
 [project.entry-points."prefect.collections"]
 prefect_oci = "prefect_oci"
 
