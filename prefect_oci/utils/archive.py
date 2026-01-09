@@ -69,14 +69,3 @@ def diff_id_from_tar_gz(tar_gz_path: str) -> str:
             logger.debug("Calculated diff ID: sha256:%s for %s", hash_value, tar_gz_path)
             return hash_value
         
-        
-if __name__ == "__main__":
-    make_targz(
-        "/Users/brendan/Documents/PycharmProjects/oci-tools/src/prefect_oci/hack/deps",
-        "/Users/brendan/Documents/PycharmProjects/oci-tools/src/prefect_oci/hack/deps.tgz"
-    )
-
-    make_targz(
-        "/Users/brendan/Documents/PycharmProjects/oci-tools/src/prefect_oci/hack/req",
-        "/Users/brendan/Documents/PycharmProjects/oci-tools/src/prefect_oci/hack/code.tgz"
-    )
