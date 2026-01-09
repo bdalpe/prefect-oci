@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 async def create_tar_archive(
     sources: str | List[str],
-    output_path: str = tempfile.NamedTemporaryFile().name,
+    output_path: str | None = None,
     archive_root: str | None = None,
     working_directory: str = os.getcwd(),
     ignore_file: Optional[str] = ".prefectignore",
@@ -33,6 +33,7 @@ async def create_tar_archive(
     :param working_directory: The working directory to use when creating the archive.
     :param ignore_file: Path to a file containing ignore patterns (like .gitignore).
     """
+    output_path = output_path or tempfile.NamedTemporaryFile(suffix=".tar.gz").name
     logger.info("Creating tar archive at %s", output_path)
 
     included_files = None
