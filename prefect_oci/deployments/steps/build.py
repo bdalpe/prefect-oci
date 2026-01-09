@@ -132,3 +132,8 @@ async def install_dependencies_for_archiving(
         stream_output=stream_output
     )
     logger.info("Successfully installed dependencies to %s", target_directory)
+
+    return {
+        "target_directory": target_directory,
+        "requirements_file": requirements_file,
+    }

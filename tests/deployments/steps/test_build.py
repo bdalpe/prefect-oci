@@ -375,3 +375,26 @@ class TestInstallDependenciesForArchiving:
 
         # Check that LoggerWriter was called
         assert mock_logger_writer.call_count == 2
+
+    @pytest.mark.asyncio
+    @patch("prefect_oci.deployments.steps.build.run_process")
+    @patch("prefect_oci.deployments.steps.build.shutil.which")
+    async def test_install_dependencies_returns_dict(
+        self, mock_which, mock_run_process, temp_dir, requirements_file
+    ):
+        """Test that install_dependencies_for_archiving returns the expected dictionary."""
+        mock_which.return_value = "/usr/bin/uv"
+        mock_run_process.return_value = AsyncMock()
+
+        target_dir = temp_dir / "deps"
+        target_dir.mkdir()
+
+        result = await install_dependencies_for_archiving(
+            requirements_file=str(requirements_file),
+            target_directory=str(target_dir),
+        )
+
+        assert isinstance(result, dict)
+        assert result["target_directory"] == str(target_dir)
+        assert result["requirements_file"] == str(requirements_file)
+
