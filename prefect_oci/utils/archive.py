@@ -38,10 +38,11 @@ def make_targz(
         logger.debug("Archive root path: %s", archive_root)
 
     # os.O_WRONLY tells the computer you are only going to writo to the file, not read
-    # os.O_CREATE tells the computer to create the file if it doesn't exist
+    # os.O_CREAT tells the computer to create the file if it doesn't exist
+    # os.O_TRUNC tells the computer to truncate the file if it already exists
     file_count = 0
     with os.fdopen(
-            os.open(dest_name, os.O_WRONLY | os.O_CREAT, 0o644), "wb"
+        os.open(dest_name, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o644), "wb"
     ) as out_file:
         with gzip.GzipFile(mode="wb", fileobj=out_file, mtime=0) as gzip_file:
             with tarfile.open(fileobj=gzip_file, mode="w:") as tar_file:
