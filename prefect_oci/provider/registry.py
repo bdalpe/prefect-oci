@@ -19,6 +19,17 @@ logger = logging.getLogger(__name__)
 
 
 class Registry(ORASRegistry):
+    def get_container(self, name: container_type) -> oras.container.Container:
+        """
+        Courtesy function to get a container from a URI.
+
+        :param name: unique resource identifier to parse
+        :type name: oras.container.Container or str
+        """
+        if isinstance(name, oras.container.Container):
+            return name
+        return Container(name, registry=self.hostname)
+    
     def upload_manifest(
             self,
             manifest: dict,
