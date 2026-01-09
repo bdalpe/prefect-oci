@@ -23,9 +23,9 @@ Available steps for `prefect.yaml`:
     - prefect_oci.deployments.steps.install_dependencies_for_archiving
     - prefect_oci.deployments.steps.create_tar_archive
 * push:
-    - prefect_oci.deployments.steps.push_artifact
+    - prefect_oci.deployments.steps.push_oci_image
 * pull:
-    - prefect_oci.deployments.steps.pull_artifact
+    - prefect_oci.deployments.steps.pull_oci_image
 
 ## Example Usage
 
@@ -37,12 +37,12 @@ build:
       id: requirements
   - prefect_oci.deployments.steps.create_tar_archive:
       id: flow
-      directory: ./src/my_flow
+      sources: ./src/my_flow
       
 push:
-  - prefect_oci.deployments.steps.push_artifact:
-      image: localhost:5002/my-flow
+  - prefect_oci.deployments.steps.push_oci_image:
+      name: localhost:5002/my-flow
       tag: latest
-      artifacts:
-        - {{ flow.archive_path }}
+      layers:
+        - "{{ flow.output_path }}"
 ```
