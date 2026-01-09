@@ -244,7 +244,7 @@ class TestInstallDependenciesForArchiving:
         call_args = mock_run_process.call_args
         command = call_args[0][0]
         assert command[0] == "/usr/bin/uv"
-        assert "pip3" in command
+        assert "pip" in command
         assert "install" in command
         assert str(requirements_file) in command
         assert str(target_dir) in command
@@ -278,7 +278,7 @@ class TestInstallDependenciesForArchiving:
         command = call_args[0][0]
         assert command[0] == "/usr/bin/python3"
         assert command[1] == "-m"
-        assert "pip3" in command
+        assert "pip" in command
 
     @pytest.mark.asyncio
     @patch("prefect_oci.deployments.steps.build.run_process")

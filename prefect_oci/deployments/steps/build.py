@@ -103,7 +103,7 @@ async def install_dependencies_for_archiving(
     """
     logger.info("Installing dependencies from %s to %s", requirements_file, target_directory)
 
-    command = ["pip3", "install", "-r", requirements_file, "--target", target_directory]
+    command = ["pip", "install", "-r", requirements_file, "--target", target_directory]
 
     if platform:
         logger.debug("Target platform: %s", platform)
