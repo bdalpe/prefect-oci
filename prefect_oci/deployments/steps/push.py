@@ -80,9 +80,8 @@ async def push_oci_image(
         logger.debug("Uploaded manifest with digest: %s", digest)
 
         manifest = client.get_manifest(Container.with_new_digest(container, digest))
-        manifest['digest'] = digest  # add digest for the index manifest
-        manifest['size'] = int(response.headers.get('Content-Length', '0'))
-        
+        manifest['size'] = len(json.dumps(manifest))
+        manifest['digest'] = digest  # add digest for the index manifest        
         manifests.append(manifest)
 
     # If layers is a mapping, we treat it as a multi-platform image
