@@ -50,19 +50,21 @@ async def create_tar_archive(
 
     def item_generator() -> Iterable[Path]:
         cwd = Path(working_directory)
-        
+
         for source in sources:
             source_path = Path(source)
+            if not source_path.is_absolute():
+                source_path = cwd / source_path
 
-            if source_path.is_dir():
-                for path in source_path.rglob("*"):
-                    if path.is_file():
+            candidates = source_path.rglob("*") if source_path.is_dir() else [source_path]
+            for path in candidates:
+                if path.is_file():
+                    if included_files is not None and str(path.relative_to(cwd)) not in included_files:
+                        continue
+
+                    if source_path.is_dir():
                         logger.debug("Including file in archive: %s", path.relative_to(cwd))
-                        if included_files is None or str(path.relative_to(cwd)) in included_files:
-                            yield path
-            else:
-                if included_files is None or str(source_path.relative_to(cwd)) in included_files:
-                    yield source_path
+                    yield path
     
     make_targz(
         item_generator(),

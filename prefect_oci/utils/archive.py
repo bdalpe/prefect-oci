@@ -52,11 +52,21 @@ def make_targz(
         with gzip.GzipFile(mode="wb", fileobj=out_file, mtime=0) as gzip_file:
             with tarfile.open(fileobj=gzip_file, mode="w:") as tar_file:
                 for item in items:
-                    logger.debug("Adding %s to archive %s", item, dest_name)
+                    item_path = Path(item).absolute()
+                    logger.debug("Adding %s to archive %s", item_path, dest_name)
+                    
+                    try:
+                        rel_path = item_path.relative_to(working_directory)
+                    except ValueError:
+                        # Fallback if item is not under working_directory
+                        rel_path = item_path.name
+                        
+                    arcname = os.path.join(archive_root or "", str(rel_path))
+                    
                     tar_file.add(
-                        os.path.join(working_directory, item),
+                        item_path,
                         filter=reset,
-                        arcname=os.path.join(archive_root or "", item)
+                        arcname=arcname
                     )
                     file_count += 1
 
