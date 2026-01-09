@@ -198,6 +198,11 @@ class Registry(ORASRegistry):
         :rtype: str
         """
         self._check_200_response(response)
+        
+        if "Docker-Content-Digest" in response.headers:
+            digest = response.headers["Docker-Content-Digest"]
+            logger.debug(f"Manifest digest extracted from Docker-Content-Digest header: {digest}")
+            return digest
             
         # Fallback: use the location header if Docker-Content-Digest is not present
         if "Location" in response.headers:
