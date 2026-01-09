@@ -8,34 +8,39 @@ from typing import Optional, Iterable
 
 logger = logging.getLogger(__name__)
 
-def reset(tarinfo: tarfile.TarInfo) -> tarfile.TarInfo | None:
-    """
-    Reset tarinfo metadata to ensure reproducible archives.
-    """
-    tarinfo.uid = 0
-    tarinfo.gid = 0
-    tarinfo.uname = "root"
-    tarinfo.gname = "root"
-    tarinfo.mtime = 0  # TODO: clamp time instead of zeroing
-    
-    return tarinfo
-
-
 def make_targz(
     items: Iterable[Path], 
     dest_name: Optional[str] = None,
-    working_directory: Optional[str] = os.getcwd(),
-    archive_root: Optional[str] = None
+    working_directory: Optional[str] = None,
+    archive_root: Optional[str] = None,
+    timestamp_clamp: Optional[int] = None,
 ) -> str:
     """
     Make a reproducible (no mtime) targz (compressed) archive from a source directory.
     """
     from oras.utils import get_tmpfile
 
+    def reset(tarinfo: tarfile.TarInfo) -> tarfile.TarInfo | None:
+        """
+        Reset tarinfo metadata to ensure reproducible archives.
+        """
+        tarinfo.uid = 0
+        tarinfo.gid = 0
+        tarinfo.uname = "root"
+        tarinfo.gname = "root"
+        if timestamp_clamp is not None:
+            tarinfo.mtime = min(tarinfo.mtime, timestamp_clamp)
+        else:
+            tarinfo.mtime = 0
+        
+        return tarinfo
+
     dest_name = dest_name or get_tmpfile(suffix=".tar.gz")
     logger.info("Creating tar.gz archive: %s", dest_name)
     if archive_root:
         logger.debug("Archive root path: %s", archive_root)
+
+    working_directory = Path(working_directory or os.getcwd()).absolute()
 
     # os.O_WRONLY tells the computer you are only going to writo to the file, not read
     # os.O_CREAT tells the computer to create the file if it doesn't exist
