@@ -28,7 +28,7 @@ def create_oci_image_index_manifest(manifests: list[dict]) -> dict:
 
     # Ensure we remove layers and config from the manifest (if they exist) before adding to the index
     for mfst in manifests:
-        m = {key: value for key, value in mfst.items() if key not in {"layers", "config"}}
+        m = {key: value for key, value in mfst.items() if key not in {"schemaVersion", "layers", "config"}}
         image_index['manifests'].append(m)
 
     return image_index
