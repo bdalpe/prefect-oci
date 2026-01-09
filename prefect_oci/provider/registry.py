@@ -212,3 +212,68 @@ class Registry(ORASRegistry):
             return digest
         
         raise ValueError("Manifest digest not found in response headers.")
+
+    @decorator.retry()
+    def do_request(
+            self,
+            url: str,
+            method: str = "GET",
+            data: Optional[Union[dict, bytes]] = None,
+            headers: Optional[dict] = None,
+            json: Optional[dict] = None,
+            stream: bool = False,
+    ) -> requests.Response:
+        """
+        Do a request. This is a wrapper around requests to handle retry auth.
+
+        :param url: the URL to issue the request to
+        :type url: str
+        :param method: the method to use (GET, DELETE, POST, PUT, PATCH)
+        :type method: str
+        :param data: data for requests
+        :type data: dict or bytes
+        :param headers: headers for the request
+        :type headers: dict
+        :param json: json data for requests
+        :type json: dict
+        :param stream: stream the responses
+        :type stream: bool
+        """
+        if headers is None:
+            headers = {}
+
+        # Make the request and return to calling function, but attempt to use auth token if previously obtained
+        if isinstance(self.auth, oras.auth.TokenAuth) and self.auth.token is not None:
+            headers.update(self.auth.get_auth_header())
+        response = self.session.request(
+            method,
+            url,
+            data=data,
+            json=json,
+            headers=headers,
+            stream=stream,
+            verify=self._tls_verify,
+        )
+
+        # A 401/403 response is a request for authentication, 404 is not found
+        if response.status_code not in [401, 403]:
+            return response
+
+        # Otherwise, authenticate the request and retry
+        # There is a bug in ORAS where some registries return 401 instead of 403 for auth requests, 
+        # for instance, when the token's scope is insufficient. We treat both as auth requests here.
+        headers, changed = self.auth.authenticate_request(response, headers, refresh=True)
+        if not changed:
+            raise ValueError("Cannot respond to request for authentication.")
+        
+        response = self.session.request(
+            method,
+            url,
+            data=data,
+            json=json,
+            headers=headers,
+            stream=stream,
+            verify=self._tls_verify,
+        )
+
+        return response
