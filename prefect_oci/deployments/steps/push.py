@@ -1,7 +1,7 @@
 import json
 import logging
 import tempfile
-from typing import List
+from typing import Any, List, Optional
 
 from pydantic import BaseModel
 
@@ -21,7 +21,8 @@ async def push_oci_image(
     name: str,
     tag: str,
     layers: List[str] | List[dict],
-    client_kwargs: dict | None = None,
+    credentials: Optional[dict[str, Any]] = None,
+    client_kwargs: Optional[dict] = None,
 ):
     """
     Push an OCI manifest or image to a remote registry.
@@ -29,18 +30,37 @@ async def push_oci_image(
     :param name: The name of the OCI image.
     :param tag: The tag (or list of tags) of the OCI image.
     :param layers: A list of file paths or a mapping of platform details to file paths to include as layers.
+    :param credentials: Optional Prefect block reference or block object for authentication.
+                        Use DockerRegistryCredentials for standard registries or AwsCredentials for ECR.
     :param client_kwargs: Optional keyword arguments to pass to the Registry client.
     """
     from oras.provider import temporary_empty_config
+    from prefect_oci.provider.auth import resolve_credentials
     from prefect_oci.provider.container import Container
     from prefect_oci.provider.oci import EmptyManifestConfig
     from prefect_oci.provider.registry import Registry
 
-    client = Registry(**client_kwargs or {})
-
     container = Container(f"{name}:{tag}")
-    
+
     logger.info(f"Pushing OCI image {container.api_prefix}:{tag}")
+
+    username, password, registry_url, auth_backend = resolve_credentials(credentials, container.registry)
+
+    client_kwargs = (client_kwargs or {}).copy()
+    if credentials:
+        client_kwargs['auth_backend'] = auth_backend
+
+    # Prepare client kwargs with authentication
+    client = Registry(**client_kwargs)
+    
+    # Login if credentials resolved
+    if username and password:
+        logger.debug("Logging in to registry: %s", registry_url or "default")
+        client.login(
+            username=username, 
+            password=password, 
+            hostname=registry_url
+        )
     
     manifests = []
     

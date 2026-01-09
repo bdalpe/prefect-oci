@@ -34,5 +34,7 @@ dev = [
 [project.entry-points."prefect.collections"]
 prefect_oci = "prefect_oci"
 
-
-
+[project.optional-dependencies]
+aws = [
+    "prefect-aws>=0.7.0",
+]

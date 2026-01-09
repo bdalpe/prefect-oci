@@ -332,3 +332,217 @@ class TestPullOCIImageIntegration:
             call_args = mock_client.pull.call_args
             # Verify the name is in the constructed reference
             assert name in call_args[0][0]
+
+
+class TestPullOCIImageCredentials:
+    """Unit tests for pull_oci_image with credentials."""
+
+    @pytest.fixture
+    def temp_dir(self):
+        """Create a temporary directory for tests."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            yield Path(tmpdir)
+
+    @pytest.fixture
+    def mock_docker_credentials(self):
+        """Create a mock DockerRegistryCredentials block."""
+        mock_creds = MagicMock()
+        mock_creds.username = "testuser"
+        mock_password = MagicMock()
+        mock_password.get_secret_value.return_value = "testpass"
+        mock_creds.password = mock_password
+        mock_creds.registry_url = "my-registry.com"
+        return mock_creds
+
+    @pytest.fixture
+    def mock_aws_credentials(self):
+        """Create a mock AwsCredentials block."""
+        mock_creds = MagicMock()
+        mock_creds.aws_access_key_id = "AKIAIOSFODNN7EXAMPLE"
+        mock_secret = MagicMock()
+        mock_secret.get_secret_value.return_value = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+        mock_creds.aws_secret_access_key = mock_secret
+        mock_creds.region_name = "us-east-1"
+        return mock_creds
+
+    @pytest.mark.asyncio
+    @patch("prefect_oci.provider.registry.Registry")
+    @patch("prefect_oci.provider.auth.resolve_credentials")
+    async def test_pull_with_docker_credentials(
+        self, mock_resolve_creds, mock_registry, temp_dir, mock_docker_credentials
+    ):
+        """Test pulling with DockerRegistryCredentials block."""
+        mock_client = MagicMock()
+        mock_registry.return_value = mock_client
+
+        expected_files = [str(temp_dir / "layer.tar.gz")]
+        mock_client.pull.return_value = expected_files
+
+        # Configure resolve_credentials to return expected values
+        mock_resolve_creds.return_value = ("testuser", "testpass", "my-registry.com", "token")
+
+        result = await pull_oci_image(
+            name="my-registry.com/test-image",
+            tag="latest",
+            path=str(temp_dir),
+            credentials=mock_docker_credentials,
+        )
+
+        # Verify resolve_credentials was called correctly
+        mock_resolve_creds.assert_called_once_with(
+            mock_docker_credentials,
+            "my-registry.com",
+        )
+
+        # Verify Registry was instantiated
+        mock_registry.assert_called_once_with(auth_backend="token")
+        
+        # Verify login was called
+        mock_client.login.assert_called_once_with(
+            username="testuser", 
+            password="testpass", 
+            hostname="my-registry.com"
+        )
+
+        # Verify pull was called
+        mock_client.pull.assert_called_once_with(
+            "my-registry.com/test-image:latest",
+            outdir=str(temp_dir),
+        )
+
+        assert result["files"] == expected_files
+        assert result["path"] == str(temp_dir)
+
+    @pytest.mark.asyncio
+    @patch("prefect_oci.provider.registry.Registry")
+    @patch("prefect_oci.provider.auth.resolve_credentials")
+    @patch.dict("os.environ", {}, clear=False)
+    async def test_pull_with_aws_credentials_ecr(
+        self, mock_resolve_creds, mock_registry, temp_dir, mock_aws_credentials
+    ):
+        """Test pulling from ECR with AwsCredentials block."""
+        mock_client = MagicMock()
+        mock_registry.return_value = mock_client
+
+        expected_files = [str(temp_dir / "layer.tar.gz")]
+        mock_client.pull.return_value = expected_files
+
+        ecr_url = "123456789012.dkr.ecr.us-east-1.amazonaws.com"
+        image_name = f"{ecr_url}/my-image"
+
+        # Configure resolve_credentials to return ECR config
+        # Mocking the token retrieval result
+        mock_resolve_creds.return_value = ("AWS", "secret-token", ecr_url, "token")
+
+        result = await pull_oci_image(
+            name=image_name,
+            tag="latest",
+            path=str(temp_dir),
+            credentials=mock_aws_credentials,
+        )
+
+        # Verify resolve_credentials was called correctly
+        mock_resolve_creds.assert_called_once_with(
+            mock_aws_credentials,
+            ecr_url,
+        )
+
+        # Verify Registry was instantiated
+        mock_registry.assert_called_once_with(auth_backend="token")
+        
+        # Verify login was called
+        mock_client.login.assert_called_once_with(
+            username="AWS", 
+            password="secret-token", 
+            hostname=ecr_url
+        )
+
+        # Verify pull was called
+        mock_client.pull.assert_called_once_with(
+            f"{image_name}:latest",
+            outdir=str(temp_dir),
+        )
+
+        assert result["files"] == expected_files
+
+    @pytest.mark.asyncio
+    @patch("prefect_oci.provider.registry.Registry")
+    @patch("prefect_oci.provider.auth.resolve_credentials")
+    async def test_pull_with_credentials_and_client_kwargs(
+        self, mock_resolve_creds, mock_registry, temp_dir, mock_docker_credentials
+    ):
+        """Test that credentials and client_kwargs are handled correctly."""
+        mock_client = MagicMock()
+        mock_registry.return_value = mock_client
+
+        expected_files = [str(temp_dir / "layer.tar.gz")]
+        mock_client.pull.return_value = expected_files
+
+        existing_kwargs = {"insecure": True}
+        # Credentials resolved
+        mock_resolve_creds.return_value = ("testuser", "testpass", "my-registry.com", "token")
+
+        result = await pull_oci_image(
+            name="my-registry.com/test",
+            tag="v1",
+            path=str(temp_dir),
+            credentials=mock_docker_credentials,
+            client_kwargs=existing_kwargs,
+        )
+
+        # Verify resolve_credentials was called
+        mock_resolve_creds.assert_called_once_with(
+            mock_docker_credentials,
+            "my-registry.com",
+        )
+
+        # Verify Registry was instantiated with client_kwargs and auth_backend
+        mock_registry.assert_called_once_with(auth_backend="token", **existing_kwargs)
+        
+        # Verify login was called
+        mock_client.login.assert_called_once_with(
+            username="testuser", 
+            password="testpass", 
+            hostname="my-registry.com"
+        )
+        
+        assert result["files"] == expected_files
+
+    @pytest.mark.asyncio
+    @patch("prefect_oci.provider.registry.Registry")
+    @patch("prefect_oci.provider.auth.resolve_credentials")
+    async def test_pull_without_credentials(
+        self, mock_resolve_creds, mock_registry, temp_dir
+    ):
+        """Test that pull works without credentials."""
+        mock_client = MagicMock()
+        mock_registry.return_value = mock_client
+
+        expected_files = [str(temp_dir / "layer.tar.gz")]
+        mock_client.pull.return_value = expected_files
+
+        # Should return safe defaults
+        mock_resolve_creds.return_value = (None, None, None, "token")
+        
+        result = await pull_oci_image(
+            name="public-registry.com/image",
+            tag="latest",
+            path=str(temp_dir),
+        )
+        
+        # Verify resolve_credentials called
+        mock_resolve_creds.assert_called_once_with(None, "public-registry.com")
+
+        # Verify Registry was instantiated without auth
+        mock_registry.assert_called_once_with()
+        
+        # Verify login was NOT called
+        mock_client.login.assert_not_called()
+
+        # Verify pull was called
+        mock_client.pull.assert_called_once_with(
+            "public-registry.com/image:latest",
+            outdir=str(temp_dir),
+        )
+
+        assert result["files"] == expected_files
